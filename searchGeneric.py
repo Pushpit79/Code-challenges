@@ -1,0 +1,233 @@
+from display import Displayable, visualize
+class Searcher(Displayable):
+    """ It returns a searcher for a problem.
+     By calling search function , Paths can be found by repeatedly.
+    """
+
+    def __init__(self, problem):
+        """creates a searcher from a problem
+        """
+        self.problem = problem
+        self.initialize_frontier()
+        self.num_expanded = 0
+        self.add_to_frontier(Path(problem.start_node()))
+        super().__init__()
+
+    def initialize_frontier(self):
+        self.frontier = []
+
+    def empty_frontier(self):
+        return self.frontier == []
+
+    def add_to_frontier(self, path):
+        self.frontier.append(path)
+
+    @visualize
+    def search(self):
+        """returns (next) path from the problem's start node
+        to a goal node.
+        Returns None if no path exists.
+        """
+        while not self.empty_frontier():
+            path = self.frontier.pop()
+            self.display(2, "Expanding:", path, "(cost:", path.cost, ")")
+            self.num_expanded += 1
+            if self.problem.is_goal(path.end()):  # solution found
+                self.display(1, self.num_expanded, "paths have been expanded and",
+                             len(self.frontier), "paths remain in the frontier")
+                self.solution = path  # store the solution found
+                return path
+            else:
+                neighs = self.problem.neighbors(path.end())
+                self.display(3, "Neighbors are", neighs)
+                for arc in reversed(list(neighs)):
+                    self.add_to_frontier(Path(path, arc))
+                self.display(3, "Frontier:", self.frontier)
+        self.display(1, "No (more) solutions. Total of",
+                     self.num_expanded, "paths expanded.")
+
+
+""""Imported Deque as it is preferred over list in the cases where we need quicker append and pop operations
+ from both the ends of container"""""
+# Normal Queue can also be used.
+
+from collections import deque
+
+class BreadthFirstSearcher(Displayable):
+    """returns a searcher for a problem.
+    Paths can be found by repeatedly calling search().
+    This does breadth-first search unless overridden
+    """
+
+    def __init__(self, problem):
+        """creates a searcher from a problem
+        """
+        self.problem = problem
+        self.initialize_frontier()
+        # Initializing the Explored list
+        self.initialize_explored()
+        self.num_expanded = 0
+        self.add_to_frontier(Path(problem.start_node()))
+        super().__init__()
+
+    def initialize_frontier(self):
+        # Assigning Deque object to frontier
+        self.frontier = deque()
+
+    def empty_frontier(self):
+        return self.frontier == []
+
+    def add_to_frontier(self, path):
+        self.frontier.append(path)
+
+    def initialize_explored(self):
+        self.explored = []
+
+    def add_to_explored(self, path):
+        self.explored.append(path)
+
+    @visualize
+    def search(self):
+        """returns (next) path from the problem's start node
+        to a goal node.
+        Returns None if no path exists.
+        """
+        while not self.empty_frontier():
+            # using Popleft to pop the data from queue
+            path = self.frontier.popleft()
+            # Added one more condition to check whether the path is already explored
+            if path.end() not in self.explored:
+                self.display(2, "Expanding:", path, "(cost:", path.cost, ")")
+                self.add_to_explored(path.end())
+                self.num_expanded += 1
+                if self.problem.is_goal(path.end()):
+                    self.display(1, self.num_expanded, "paths have been expanded and",
+                                 len(self.frontier), "paths remain in the frontier")
+                    self.solution = path  # store the solution found
+                    return path
+                else:
+                    neighs = self.problem.neighbors(path.end())
+                    self.display(3, "Neighbors are", neighs)
+                    for arc in neighs:
+                        self.add_to_frontier(Path(path, arc))
+                    self.display(3, "Frontier:", self.frontier)
+        self.display(1, "No (more) solutions. Total of",
+                     self.num_expanded, "paths expanded.")
+
+
+import heapq  # part of the Python standard library
+from searchProblem import Path
+
+
+class FrontierPQ(object):
+    """A frontier consists of a priority queue (heap), frontierpq, of
+        (value, index, path) triples, where
+    * value is the value we want to minimize (e.g., path cost + h).
+    * index is a unique index for each element
+    * path is the path on the queue
+    Note that the priority queue always returns the smallest element.
+    """
+
+    def __init__(self):
+        """constructs the frontier, initially an empty priority queue
+        """
+        self.frontier_index = 0  # the number of items ever added to the frontier
+        self.frontierpq = []  # the frontier priority queue
+
+    def empty(self):
+        """is True if the priority queue is empty"""
+        return self.frontierpq == []
+
+    def add(self, path, value):
+        """add a path to the priority queue
+        value is the value to be minimized"""
+        self.frontier_index += 1  # get a new unique index
+        heapq.heappush(self.frontierpq, (value, -self.frontier_index, path))
+
+    def pop(self):
+        """returns and removes the path of the frontier with minimum value.
+        """
+        (_, _, path) = heapq.heappop(self.frontierpq)
+        return path
+
+    def count(self, val):
+        """returns the number of elements of the frontier with value=val"""
+        return sum(1 for e in self.frontierpq if e[0] == val)
+
+    def __repr__(self):
+        """string representation of the frontier"""
+        return str([(n, c, str(p)) for (n, c, p) in self.frontierpq])
+
+    def __len__(self):
+        """length of the frontier"""
+        return len(self.frontierpq)
+
+    def __iter__(self):
+        """iterate through the paths in the frontier"""
+        for (_, _, path) in self.frontierpq:
+            yield path
+
+
+class AStarSearcher(Searcher):
+    """returns a searcher for a problem.
+    Paths can be found by repeatedly calling search().
+    """
+
+    def __init__(self, problem):
+        super().__init__(problem)
+
+    def initialize_frontier(self):
+        self.frontier = FrontierPQ()
+
+    def empty_frontier(self):
+        return self.frontier.empty()
+
+    def add_to_frontier(self, path):
+        """add path to the frontier with the appropriate cost"""
+        value = path.cost + self.problem.heuristic(path.end())
+        self.frontier.add(path, value)
+
+
+import searchProblem as searchProblem
+
+def test(SearchClass, problem=searchProblem.problem1, solution=['g', 'd', 'c', 'b', 'a']):
+    """Unit test for aipython searching algorithms.
+    SearchClass is a class that takes a problemm and implements search()
+    problem is a search problem
+    solution is the unique (optimal) solution.
+    """
+    print("Testing problem 1:")
+    schr1 = SearchClass(problem)
+    path1 = schr1.search()
+    print("Path found:", path1)
+    assert list(path1.nodes()) == solution, "Shortest path not found in problem1"
+    print("Passed unit test")
+
+
+# New Unit test  for testing BFS
+def testBFS(SearchClass, problem=searchProblem.problem1, solution=['g', 'c', 'a']):
+    """Unit test for aipython searching algorithms.
+    SearchClass is a class that takes a problemm and implements search()
+    problem is a search problem
+    solution is the unique (optimal) solution.
+    """
+    print("Testing problem 1:")
+    schr1 = SearchClass(problem)
+    path1 = schr1.search()
+    print("Path found:", path1)
+    assert list(path1.nodes()) == solution, "Shortest path not found in problem1"
+    print("Passed unit test")
+
+
+if __name__ == "__main__":
+    #test(Searcher)
+    #test(AStarSearcher)
+    testBFS(BreadthFirstSearcher)
+
+ #Testing problem 1:
+# 5 paths have been expanded and 1 paths remain in the frontier
+# Path found: a --> c --> g
+# Passed unit test
+
+
+
